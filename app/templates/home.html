@@ -1,0 +1,21 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Recorder</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body>
+    <div class="container">
+        <h1>Voice Recorder</h1>
+        <button id="record-toggle">Start Recording</button>
+        <audio id="audio-playback" controls hidden></audio>
+        <p id="status-message"></p>
+        <!-- Canvas for audio histogram -->
+        <canvas id="audio-canvas"></canvas>
+    </div>
+    <script src="{% static 'js/script.js' %}"></script>
+</body>
+</html>
