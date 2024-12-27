@@ -29,22 +29,23 @@ document.getElementById('record-toggle').addEventListener('click', async () => {
 
             const reader = new FileReader();
             reader.onloadend = async () => {
-                const base64Audio = reader.result;
+                const base64Audio = reader.result; // Base64 ses verisini al
 
-                document.getElementById('status-message').innerText = 'Transcribing...';
+                document.getElementById('status-message').innerText = 'Embedding...';
+                speaker_name = document.getElementById('speaker_name').value;
 
-                const transcriptionResponse = await fetch('/transcribe_audio/', {
+                const transcriptionResponse = await fetch('/person_labeling/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `audio=${encodeURIComponent(base64Audio)}`,
+                    body: `audio=${encodeURIComponent(base64Audio)}&speaker_name=${encodeURIComponent(speaker_name)}`,
                 });
 
                 const transcriptionResult = await transcriptionResponse.json();
 
                 if (transcriptionResult.status === 'success') {
-                    document.getElementById('status-message').innerText = 'Transcription Complete';
+                    document.getElementById('status-message').innerText = 'Speaker Saved';
                     let transcriptionText = '';
 
                     transcriptionResult.speaker_segments.forEach(segment => {

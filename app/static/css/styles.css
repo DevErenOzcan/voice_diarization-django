@@ -11,18 +11,45 @@ body {
 .container {
     text-align: center;
     background: white;
-    padding: 20px;
+    padding: 40px; /* Daha fazla boşluk */
+    border-radius: 15px; /* Daha yuvarlak köşeler */
+    box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15); /* Daha belirgin gölge */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80%; /* Daha geniş bir konteyner */
+    max-width: 600px; /* Ekran boyutuna bağlı sınır */
+}
+
+h1 {
+    font-size: 2.5rem; /* Başlık boyutunu artır */
+    margin-bottom: 20px;
+}
+
+label {
+    font-size: 1.5rem; /* Etiket boyutunu artır */
+    margin-bottom: 10px;
+    display: block; /* Satır bazlı hizalama */
+}
+
+input#speaker_name {
+    font-size: 1.5rem; /* Yazı boyutunu artır */
+    padding: 10px; /* Daha geniş yazma alanı */
+    margin-bottom: 20px; /* Alt boşluk */
+    width: 90%; /* Tam genişlik */
+    max-width: 500px; /* Ekran boyutuna bağlı sınır */
+    border: 2px solid #ccc;
     border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 button {
-    margin: 10px;
-    padding: 10px 20px;
-    font-size: 16px;
+    margin: 20px; /* Butonlar arası boşluğu artır */
+    padding: 15px 30px; /* Daha büyük buton */
+    font-size: 1.5rem; /* Daha büyük yazı boyutu */
     border: none;
-    border-radius: 5px;
+    border-radius: 10px;
     cursor: pointer;
+    transition: background-color 0.3s ease; /* Renk değişimi için geçiş efekti */
 }
 
 button#record-toggle {
@@ -30,7 +57,20 @@ button#record-toggle {
     color: white;
 }
 
+button#record-toggle:hover {
+    background-color: #45a049; /* Hover rengi */
+}
+
 audio {
+    margin-top: 30px; /* Daha fazla boşluk */
+    width: 100%;
+}
+
+canvas#audio-canvas {
     margin-top: 20px;
     width: 100%;
+    max-width: 500px; /* Sınırlandırılmış genişlik */
+    height: 150px; /* Histogram için yükseklik */
+    border: 1px solid #ccc; /* Çerçeve */
+    border-radius: 10px; /* Yuvarlatılmış köşeler */
 }
