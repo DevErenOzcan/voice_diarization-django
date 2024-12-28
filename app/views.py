@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 from io import BytesIO
@@ -69,10 +70,10 @@ def transcribe_audio(request):
                         'text': segment.text
                     })
                 # Encode the histogram image to base64 to send to the frontend
-                # histogram_image = generate_audio_histogram(file_path)
-                # histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
+                histogram_image = generate_audio_histogram(file_path)
+                histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
                 return JsonResponse(
-                    {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': None})
+                    {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': histogram_base64})
             else:
                 return JsonResponse({'error': True, 'message': f'Failed to save segments. Error: {save_speaker_segment_resp["message"]}'})
             # else:
