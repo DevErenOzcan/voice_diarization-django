@@ -15,9 +15,6 @@
     python manage.py makemigrations
     python manage.py migrate
 
-### Cuda mevcut değilse yorum satırına al:
-    inference.to(torch.device("cuda"))
-
 ### Django serverı başlat:
     python manage.py runserver
 
