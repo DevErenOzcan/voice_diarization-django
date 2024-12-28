@@ -31,7 +31,7 @@ def transcribe_audio(request):
         # if not save_audio_file_resp.get("error"):
         if not False:
             # file_path = save_audio_file_resp.get("message")
-            file_path = "recordings/trancribe/blob_WezLF6A.wav"
+            file_path = "recordings/transcribe/blob_WezLF6A.wav"
 
             with open(file_path, 'rb') as f:
                 audio_file = f.read()
@@ -148,7 +148,7 @@ def speaker_is_recorded_check(combined_data):
 
     # Get the voice embedding values
     inference = settings.INFERENCE
-    inference.to(torch.device("cuda"))
+    #inference.to(torch.device("cuda"))
 
     # embedding yapılacak olan ses pytorch tensor formatında olmalı bu yüzden combined data değişkenini önce
     # numpy array formatına sonra tensor formatına dönüştürüyoruz
@@ -218,7 +218,7 @@ def person_labeling(request):
 
                 # get embedding values
                 inference = settings.INFERENCE
-                inference.to(torch.device("cuda"))
+                #inference.to(torch.device("cuda"))
                 embeded_audio = inference(file_path)
 
                 # save mebedding values
