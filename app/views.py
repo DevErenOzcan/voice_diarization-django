@@ -1,13 +1,8 @@
 import json
 import os
-import base64
-import tempfile
-import uuid
-import requests
 from io import BytesIO
 
 from django.core.files.storage import default_storage
-from django.db import transaction
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -19,7 +14,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydub import AudioSegment
 from scipy.spatial.distance import cdist
-from scipy.io import wavfile
 
 
 TRANSCRIPTION_API_URL = 'https://10dc-34-16-179-15.ngrok-free.app/'
