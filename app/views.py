@@ -1,12 +1,17 @@
+import json
 import os
 import base64
+import tempfile
 import uuid
 import requests
 from io import BytesIO
+
+from django.core.files.storage import default_storage
+from django.db import transaction
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-from app.models import SpeakerEmbeddings
+from app.models import Speaker, EmbeddedSpeakers, Segment, Word
 from django.conf import settings
 
 import torch
@@ -17,15 +22,7 @@ from scipy.spatial.distance import cdist
 from scipy.io import wavfile
 
 
-TRANSCRIPTION_API_URL = 'https://0121-34-142-235-206.ngrok-free.app/'
-
-class Speaker(object):
-    def __init__(self, name):
-        self.name = name
-        self.segment_number = 0
-        self.segments = []
-        self.most_mathing_recorded_speaker = None
-        self.score = None
+TRANSCRIPTION_API_URL = 'https://10dc-34-16-179-15.ngrok-free.app/'
 
 def home(request):
     return render(request, 'home.html')
@@ -34,151 +31,150 @@ def home(request):
 @csrf_exempt
 def transcribe_audio(request):
     if request.method == 'POST':
-        audio_data = request.POST.get('audio')
-        if not audio_data:
-            return JsonResponse({'status': 'error', 'message': 'No audio data provided.'})
+        # get audio file
+        # audio_file = request.FILES.get('audio_file')
+        # save_audio_file_resp = save_audio_file(audio_file)
+        # if not save_audio_file_resp.get("error"):
+        if not False:
+            # file_path = save_audio_file_resp.get("message")
+            file_path = "recordings/trancribe/blob_WezLF6A.wav"
 
-        # save audio
-        save_func_response = save_audio(audio_data)
-        if save_func_response.get('error'):
-            return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+            with open(file_path, 'rb') as f:
+                audio_file = f.read()
+
+            # # Send audio to transcription API
+            # response = requests.post(TRANSCRIPTION_API_URL, files={'audio': audio_file})
+            #
+            # if response.status_code == 200:
+            with open("eyturkgencligi.json", 'r') as file:
+                data = json.load(file)
+            # önceden kalan geçici segmentleri temizliyorum
+            Speaker.objects.all().delete()
+            Segment.objects.all().delete()
+            Word.objects.all().delete()
+
+            # save speaker segments
+            save_speaker_segment_resp = save_speaker_segments(data.get('segments'))
+            if not save_speaker_segment_resp["error"]:
+                speakers = Speaker.objects.all()
+                # embedding check
+                for speaker in speakers:
+                    # concatenate speaker segments
+                    concatenated_segments = concatenate_speaker_segments(speaker, file_path)
+                    # speaker is recorded??
+                    most_matching_speaker, score = speaker_is_recorded_check(concatenated_segments)
+                    # add the embedding cheack values to Speaker object
+                    speaker.most_matching_recorded_speaker = most_matching_speaker
+                    speaker.score = score
+                    speaker.save()
+
+                speaker_segments = []
+                for segment in Segment.objects.all():
+                    speaker_segments.append({
+                        'speaker': segment.speaker.most_matching_recorded_speaker.name,
+                        'text': segment.text
+                    })
+                # Encode the histogram image to base64 to send to the frontend
+                # histogram_image = generate_audio_histogram(file_path)
+                # histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
+                return JsonResponse(
+                    {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': None})
+            else:
+                return JsonResponse({'error': True, 'message': f'Failed to save segments. Error: {save_speaker_segment_resp["message"]}'})
+            # else:
+            #     return JsonResponse({'error': True, 'message': "response not 200"})
         else:
-            audio_filename = save_func_response.get('file_path')
-
-        # Open the saved audio file
-        file_path = os.path.join(audio_filename)
-        if not os.path.exists(file_path):
-            return JsonResponse({'status': 'error', 'message': 'Audio file not found.'})
-
-        with open(file_path, 'rb') as f:
-            audio_file = f.read()
-
-        # Send audio to transcription API
-        response = requests.post(TRANSCRIPTION_API_URL, files={'audio': audio_file})
-
-        if response.status_code == 200:
-            data = response.json()
-
-            # get speaker segments
-            speakers = get_speaker_segments(data)
-
-            # concatenate speaker segments
-            for speaker in speakers:
-                combined_data = concatenate_speaker_segments(speaker, file_path)
-
-                # save temporary concatenate file
-                temp_save_func_response = save_audio(combined_data)
-                if temp_save_func_response.get('error'):
-                    return JsonResponse({'status': 'error', 'message': 'combined_data geçici olarak kaydedilirken bir hata oluştu'})
-                else:
-                    combined_audio_file_path = temp_save_func_response.get('file_path')
-                    most_matching_speaker, score = speaker_is_recorded_check(combined_audio_file_path)
-
-                speaker.most_mathing_recorded_speaker = most_matching_speaker
-                speaker.score = score
-
-            # Encode the histogram image to base64 to send to the frontend
-            histogram_image = generate_audio_histogram(file_path)
-            histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
-
-            return JsonResponse(
-                {'status': 'success', 'speaker_segments': None, 'histogram': None})
-        else:
-            return JsonResponse({'status': 'error', 'message': 'Transcription failed.'})
-
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
+            return JsonResponse({'error': True, 'message': f'An error occurred while saving the audio file.Error:{save_audio_file_resp.get("message")}'})
+    else:
+        return JsonResponse({'error': True, 'message': 'Invalid request'})
 
 
-def get_speaker_segments(data):
-    segments = data.get("segments")
-    speakers = []
-    speaker_names = []
-    current_speaker = None
+def save_audio_file(audio_file):
+    file_name = f'recordings/trancribe/'
+    temp_file_path = default_storage.save(file_name, audio_file)
+    # Dosya yolunu belirleyin
+    input_file_path = default_storage.path(temp_file_path)
+    output_file_path = os.path.splitext(input_file_path)[0] + ".wav"
+    try:
+        # Pydub ile dosyayı wav formatına dönüştürün
+        audio = AudioSegment.from_file(input_file_path)
+        audio.export(output_file_path, format="wav")
+        default_storage.delete(temp_file_path)
+        return {'error': False, 'message': output_file_path}
+    except Exception as e:
+        return {'error': True, 'message': str(e)}
 
-    for segment in segments:
-        speaker_name = segment.get("speaker")
-        start = segment.get("start")
-        end = segment.get("end")
-        if speaker_name not in speaker_names:
-            # save speaker obj
-            speaker = Speaker(speaker_name)
-            speaker.segments.append({"start": start, "end": end})
-            speaker.segment_number += 1
-            speakers.append(speaker)
 
-            # set local variables
-            speaker_names.append(speaker_name)
-            current_speaker = speaker_name
+def save_speaker_segments(segments):
+    try:
+        for segment_data in segments:
+            speaker, _ = Speaker.objects.get_or_create(name=segment_data.get("speaker"))
 
-        elif current_speaker == speaker_name:
-            for speaker in speakers:
-                if speaker.name == speaker_name:
-                    # change end value
-                    speaker.segments[speaker.segment_number - 1]["end"] = end
+            segment = Segment.objects.create(
+                start=segment_data.get("start"),
+                end=segment_data.get("end"),
+                text=segment_data.get("text"),
+                speaker=speaker
+            )
 
-        else:
-            for speaker in speakers:
-                if speaker.name == speaker_name:
-                    # add new segment for speaker
-                    speaker.segments.append({"start": start, "end": end})
+            for word_data in segment_data["words"]:
+                Word.objects.create(
+                    segment=segment,
+                    word=word_data.get("word"),
+                    start=word_data.get("start"),
+                    end=word_data.get("end"),
+                    score=word_data.get("score"),
+                    speaker=speaker
+                )
+        return {'error': False, 'message': "Segments retrieved successfully."}
+    except Exception as e:
+        return {'error': True, 'message': str(e)}
 
-                    # set local vari
-                    current_speaker = speaker_name
-    return speakers
+
 
 def concatenate_speaker_segments(speaker, file_path):
-    time_intervals = []
-    for speaker_segment in speaker.segments:
-        start_time = speaker_segment["start"]
-        end_time = speaker_segment["end"]
-        time_intervals.append((start_time, end_time))
+    audio = AudioSegment.from_file(file_path, format="wav")
+    concatenated_audio = AudioSegment.empty()
 
-    selected_wav_data = []
-    sample_rate, wav_data = wavfile.read(file_path)
+    segments = Segment.objects.filter(speaker=speaker)
+    for segment in segments:
+        # pydub a ms cinsinden göndermek gerekiyor o yüzden * 1000
+        start_time = segment.start * 1000
+        end_time = segment.end * 1000
+        segment_audio = audio[start_time:end_time]
+        concatenated_audio += segment_audio
+    return concatenated_audio
 
-    for start_time, end_time in time_intervals:
-        # Başlangıç ve bitiş örneklerini hesapla
-        start_sample = int(start_time * sample_rate)
-        end_sample = int(end_time * sample_rate)
 
-        # Belirtilen zaman aralığındaki verileri al
-        selected_wav_data.append(wav_data[start_sample:end_sample])
 
-    combined_data = np.concatenate(selected_wav_data)
 
-    return combined_data
-
-def speaker_is_recorded_check(file_path):
+def speaker_is_recorded_check(combined_data):
     distances = []
+    sample_rate = combined_data.frame_rate
 
     # Get the voice embedding values
     inference = settings.INFERENCE
     inference.to(torch.device("cuda"))
-    request_audio_embedding = inference(file_path)
 
-    speakers = SpeakerEmbeddings.objects.all()
+    # embedding yapılacak olan ses pytorch tensor formatında olmalı bu yüzden combined data değişkenini önce
+    # numpy array formatına sonra tensor formatına dönüştürüyoruz
+    waveform = np.array(combined_data.get_array_of_samples())
+    waveform = waveform.reshape((-1, combined_data.channels))
+    waveform_tensor = torch.tensor(waveform, dtype=torch.float32)
+    waveform_tensor = waveform_tensor.permute(1, 0)  # (channels, time)
+
+    # !embedding!
+    embedding = inference({'waveform': waveform_tensor, 'sample_rate': sample_rate})
+    embedding = embedding.reshape(1, -1)
+
+    speakers = EmbeddedSpeakers.objects.all()
     for speaker in speakers:
-        requested_audio = np.array(request_audio_embedding).reshape(1, -1)
-        saved_audio = np.array(speaker.embedding).reshape(1, -1)
-        distance = cdist(requested_audio, saved_audio, metric="cosine")[0, 0]
-        distances.append({"speaker":speaker, "distance":distance})
+        saved_embedding = np.array(speaker.embedding).reshape(1, -1)
+        distance = cdist(embedding, saved_embedding, metric="cosine")[0, 0]
+        distances.append({"speaker": speaker, "distance": distance})
 
     distances.sort(key=lambda x: x["distance"])
     return distances[0]["speaker"], distances[0]["distance"]
-
-
-def save_audio(audio_data):
-    try:
-        audio_binary = base64.b64decode(audio_data.split(',')[1])
-        file_path = f"recordings/{uuid.uuid4()}.wav"
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
-        with open(file_path, 'wb') as f:
-            f.write(audio_binary)
-        result = {'error': 'false', 'file_path': file_path}
-    except Exception as e:
-        result = {'error': 'true', 'message': str(e)}
-
-    return result
 
 
 def generate_audio_histogram(file_path):
@@ -210,39 +206,35 @@ def generate_audio_histogram(file_path):
 def person_labeling(request):
     if request.method == 'POST':
         try:
+            # get speaker name
             name = request.POST.get('speaker_name')
-            names = SpeakerEmbeddings.objects.all().values_list('name', flat=True)
+            names = EmbeddedSpeakers.objects.all().values_list('name', flat=True)
             if name in names:
-                return JsonResponse({'status': 'error', 'message': 'Name already exists.'})
+                return JsonResponse({'error': True, 'message': 'Name already exists.'})
 
-            audio_data = request.POST.get('audio')
-            if not audio_data:
-                return JsonResponse({'status': 'error', 'message': 'No audio data provided.'})
+            # get audio file
+            audio_file = request.FILES.get('audio_file')
+            if audio_file.size == 0:
+                return JsonResponse({'error': True, 'message': 'No audio data provided.'})
 
             # save audio
-            save_func_response = save_audio(audio_data)
-            if not save_func_response.get('error'):
-                return JsonResponse({'status': 'error', 'message': 'Invalid request method.'})
-            else:
-                audio_filename = save_func_response.get('file_path')
+            if audio_file and name:
+                file_name = f'recordings/labeled/{name}_{audio_file.name}'
+                file_path = default_storage.save(file_name, audio_file)
 
-            # Open the saved audio file
-            file_path = os.path.join(audio_filename)
-            if not os.path.exists(file_path):
-                return JsonResponse({'status': 'error', 'message': 'Audio file not found.'})
+                # get embedding values
+                inference = settings.INFERENCE
+                inference.to(torch.device("cuda"))
+                embeded_audio = inference(file_path)
 
-            # Get the voice embedding values
-            inference = settings.INFERENCE
-            inference.to(torch.device("cuda"))
-            embeded_audio = inference(file_path)
-
-            speaker_embedded_obj = SpeakerEmbeddings.objects.create(name=name, embedding=embeded_audio.tolist())
-            speaker_embedded_obj.save()
+                # save mebedding values
+                speaker_embedded_obj = EmbeddedSpeakers.objects.create(name=name, embedding=embeded_audio.tolist())
+                speaker_embedded_obj.save()
 
         except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)})
+            return JsonResponse({'error': True, 'message': str(e)})
 
-        return JsonResponse({'status': 'success'})
+        return JsonResponse({'error': False, 'message':'Success'})
 
     else:
         return render(request, 'labeling.html')
