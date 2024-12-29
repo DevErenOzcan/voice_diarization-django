@@ -22,6 +22,8 @@ class Segment(models.Model):
     start = models.FloatField(null=True, blank=True)
     end = models.FloatField(null=True, blank=True)
     text = models.TextField(null=True, blank=True)
+    sentiment = models.TextField(null=True, blank=True)
+    sentiment_score = models.FloatField(null=True, blank=True)
     speaker = models.ForeignKey(Speaker, related_name='segments', on_delete=models.CASCADE, null=True, blank=True)
 
     def __str__(self):
@@ -31,7 +33,7 @@ class Word(models.Model):
     id = models.AutoField(primary_key=True)
     segment = models.ForeignKey(Segment, related_name='words', on_delete=models.CASCADE)
     speaker = models.ForeignKey(Speaker, related_name='words', on_delete=models.CASCADE, null=True, blank=True)
-    word = models.CharField(max_length=100, null=True, blank=True)
+    word = models.CharField(max_length=50, null=True, blank=True)
     start = models.FloatField(null=True, blank=True)
     end = models.FloatField(null=True, blank=True)
     score = models.FloatField(null=True, blank=True)
@@ -39,3 +41,8 @@ class Word(models.Model):
     def __str__(self):
         return f"Word: {self.word} ({self.start}-{self.end})"
 
+
+# class Sentiment(models.Model):
+#     id = models.AutoField(primary_key=True)
+#
+#     segment = models.ForeignKey(Segment, related_name='sentiments', on_delete=models.CASCADE)

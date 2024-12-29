@@ -1,12 +1,13 @@
 import base64
-import json
 import os
 from io import BytesIO
 
+import requests
 from django.core.files.storage import default_storage
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+
 from app.models import Speaker, EmbeddedSpeakers, Segment, Word
 from django.conf import settings
 
@@ -17,7 +18,7 @@ from pydub import AudioSegment
 from scipy.spatial.distance import cdist
 
 
-TRANSCRIPTION_API_URL = 'https://10dc-34-16-179-15.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://fbb5-34-143-172-38.ngrok-free.app/'
 
 def home(request):
     return render(request, 'home.html')
@@ -27,65 +28,62 @@ def home(request):
 def transcribe_audio(request):
     if request.method == 'POST':
         # get audio file
-        # audio_file = request.FILES.get('audio_file')
-        # save_audio_file_resp = save_audio_file(audio_file)
-        # if not save_audio_file_resp.get("error"):
-        if not False:
-            # file_path = save_audio_file_resp.get("message")
-            file_path = "recordings/transcribe/blob_WezLF6A.wav"
+        audio_file = request.FILES.get('audio_file')
+        save_audio_file_resp = save_audio_file(audio_file)
+        if not save_audio_file_resp.get("error"):
+            if not False:
+                file_path = save_audio_file_resp.get("message")
 
-            with open(file_path, 'rb') as f:
-                audio_file = f.read()
+                with open(file_path, 'rb') as f:
+                    audio_file = f.read()
 
-            # # Send audio to transcription API
-            # response = requests.post(TRANSCRIPTION_API_URL, files={'audio': audio_file})
-            #
-            # if response.status_code == 200:
-            with open("eyturkgencligi.json", 'r') as file:
-                data = json.load(file)
-            # önceden kalan geçici segmentleri temizliyorum
-            Speaker.objects.all().delete()
-            Segment.objects.all().delete()
-            Word.objects.all().delete()
+                # Send audio to transcription API
+                response = requests.post(TRANSCRIPTION_API_URL, files={'audio': audio_file})
 
-            # save speaker segments
-            save_speaker_segment_resp = save_speaker_segments(data.get('segments'))
-            if not save_speaker_segment_resp["error"]:
-                speakers = Speaker.objects.all()
-                # embedding check
-                for speaker in speakers:
-                    # concatenate speaker segments
-                    concatenated_segments = concatenate_speaker_segments(speaker, file_path)
-                    # speaker is recorded??
-                    most_matching_speaker, score = speaker_is_recorded_check(concatenated_segments)
-                    # add the embedding cheack values to Speaker object
-                    speaker.most_matching_recorded_speaker = most_matching_speaker
-                    speaker.score = score
-                    speaker.save()
+                if response.status_code == 200:
+                    data = response.json()
+                    Speaker.objects.all().delete()
+                    Segment.objects.all().delete()
+                    Word.objects.all().delete()
 
-                speaker_segments = []
-                for segment in Segment.objects.all():
-                    speaker_segments.append({
-                        'speaker': segment.speaker.most_matching_recorded_speaker.name,
-                        'text': segment.text
-                    })
-                # Encode the histogram image to base64 to send to the frontend
-                histogram_image = generate_audio_histogram(file_path)
-                histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
-                return JsonResponse(
-                    {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': histogram_base64})
+                    # save speaker segments
+                    save_speaker_segment_resp = save_speaker_segments(data.get('segments'))
+                    if not save_speaker_segment_resp["error"]:
+                        speakers = Speaker.objects.all()
+                        # embedding check
+                        for speaker in speakers:
+                            # concatenate speaker segments
+                            concatenated_segments = concatenate_speaker_segments(speaker, file_path)
+                            # speaker is recorded??
+                            most_matching_speaker, score = speaker_is_recorded_check(concatenated_segments)
+                            # add the embedding cheack values to Speaker object
+                            speaker.most_matching_recorded_speaker = most_matching_speaker
+                            speaker.score = score
+                            speaker.save()
+
+                        speaker_segments = []
+                        for segment in Segment.objects.all():
+                            speaker_segments.append({
+                                'speaker': segment.speaker.most_matching_recorded_speaker.name,
+                                'text': segment.text
+                            })
+                        # Encode the histogram image to base64 to send to the frontend
+                        histogram_image = generate_audio_histogram(file_path)
+                        histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
+                        return JsonResponse(
+                            {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': histogram_base64})
+                    else:
+                        return JsonResponse({'error': True, 'message': f'Failed to save segments. Error: {save_speaker_segment_resp["message"]}'})
+                else:
+                    return JsonResponse({'error': True, 'message': "response not 200"})
             else:
-                return JsonResponse({'error': True, 'message': f'Failed to save segments. Error: {save_speaker_segment_resp["message"]}'})
-            # else:
-            #     return JsonResponse({'error': True, 'message': "response not 200"})
-        else:
-            return JsonResponse({'error': True, 'message': f'An error occurred while saving the audio file.Error:{save_audio_file_resp.get("message")}'})
+                return JsonResponse({'error': True, 'message': f'An error occurred while saving the audio file.Error:{save_audio_file_resp.get("message")}'})
     else:
         return JsonResponse({'error': True, 'message': 'Invalid request'})
 
 
 def save_audio_file(audio_file):
-    file_name = f'recordings/trancribe/'
+    file_name = f'recordings/transcribe/transcribe_'
     temp_file_path = default_storage.save(file_name, audio_file)
     # Dosya yolunu belirleyin
     input_file_path = default_storage.path(temp_file_path)
@@ -105,11 +103,17 @@ def save_speaker_segments(segments):
         for segment_data in segments:
             speaker, _ = Speaker.objects.get_or_create(name=segment_data.get("speaker"))
 
+            # hata varsa kaldırabilirsiniz
+            pipe = settings.PIPE
+            sentiment_analyze = pipe(segment_data.get("text"))
+
             segment = Segment.objects.create(
                 start=segment_data.get("start"),
                 end=segment_data.get("end"),
                 text=segment_data.get("text"),
-                speaker=speaker
+                speaker=speaker,
+                sentiment = sentiment_analyze[0].get("label"),
+                sentiment_score = sentiment_analyze[0].get("score"),
             )
 
             for word_data in segment_data["words"]:
