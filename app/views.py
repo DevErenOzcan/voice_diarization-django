@@ -29,55 +29,53 @@ def transcribe_audio(request):
     if request.method == 'POST':
         # get audio file
         audio_file = request.FILES.get('audio_file')
-        save_audio_file_resp = save_audio_file(audio_file)
-        if not save_audio_file_resp.get("error"):
-            if not False:
-                file_path = save_audio_file_resp.get("message")
+        file_save_success, file_save_message = save_audio_file(audio_file)
+        if file_save_success:
+            file_path = file_save_message
 
-                with open(file_path, 'rb') as f:
-                    audio_file = f.read()
+            with open(file_path, 'rb') as f:
+                audio_file = f.read()
 
-                # Send audio to transcription API
-                response = requests.post(TRANSCRIPTION_API_URL, files={'audio': audio_file})
+            # Send audio to transcription API
+            response = requests.post(TRANSCRIPTION_API_URL, files={'audio': audio_file})
 
-                if response.status_code == 200:
-                    data = response.json()
-                    Speaker.objects.all().delete()
-                    Segment.objects.all().delete()
-                    Word.objects.all().delete()
+            if response.status_code == 200:
+                data = response.json()
+                Speaker.objects.all().delete()
+                Segment.objects.all().delete()
+                Word.objects.all().delete()
 
-                    # save speaker segments
-                    save_speaker_segment_resp = save_speaker_segments(data.get('segments'))
-                    if not save_speaker_segment_resp["error"]:
-                        speakers = Speaker.objects.all()
-                        # embedding check
-                        for speaker in speakers:
-                            # concatenate speaker segments
-                            concatenated_segments = concatenate_speaker_segments(speaker, file_path)
-                            # speaker is recorded??
-                            most_matching_speaker, score = speaker_is_recorded_check(concatenated_segments)
-                            # add the embedding cheack values to Speaker object
-                            speaker.most_matching_recorded_speaker = most_matching_speaker
-                            speaker.score = score
-                            speaker.save()
+                # save speaker segments
+                if save_speaker_segments(data):
+                    speakers = Speaker.objects.all()
+                    # embedding check
+                    for speaker in speakers:
+                        # concatenate speaker segments
+                        concatenated_segments = concatenate_speaker_segments(speaker, file_path)
+                        # speaker is recorded??
+                        most_matching_speaker, score = speaker_is_recorded_check(concatenated_segments)
+                        # add the embedding cheack values to Speaker object
+                        speaker.most_matching_recorded_speaker = most_matching_speaker
+                        speaker.score = score
+                        speaker.save()
 
-                        speaker_segments = []
-                        for segment in Segment.objects.all():
-                            speaker_segments.append({
-                                'speaker': segment.speaker.most_matching_recorded_speaker.name,
-                                'text': segment.text
-                            })
-                        # Encode the histogram image to base64 to send to the frontend
-                        histogram_image = generate_audio_histogram(file_path)
-                        histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
-                        return JsonResponse(
-                            {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': histogram_base64})
-                    else:
-                        return JsonResponse({'error': True, 'message': f'Failed to save segments. Error: {save_speaker_segment_resp["message"]}'})
+                    speaker_segments = []
+                    for segment in Segment.objects.all():
+                        speaker_segments.append({
+                            'speaker': segment.speaker.most_matching_recorded_speaker.name,
+                            'text': segment.text
+                        })
+                    # Encode the histogram image to base64 to send to the frontend
+                    histogram_image = generate_audio_histogram(file_path)
+                    histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
+                    return JsonResponse(
+                        {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': histogram_base64})
                 else:
-                    return JsonResponse({'error': True, 'message': "response not 200"})
+                    return JsonResponse({'error': True, 'message': 'An error occurred while saving segments. Error: '})
             else:
-                return JsonResponse({'error': True, 'message': f'An error occurred while saving the audio file.Error:{save_audio_file_resp.get("message")}'})
+                return JsonResponse({'error': True, 'message': "response not 200"})
+        else:
+            return JsonResponse({'error': True, 'message': file_save_message})
     else:
         return JsonResponse({'error': True, 'message': 'Invalid request'})
 
@@ -93,9 +91,9 @@ def save_audio_file(audio_file):
         audio = AudioSegment.from_file(input_file_path)
         audio.export(output_file_path, format="wav")
         default_storage.delete(temp_file_path)
-        return {'error': False, 'message': output_file_path}
+        return True, output_file_path
     except Exception as e:
-        return {'error': True, 'message': str(e)}
+        return False, e
 
 
 def save_speaker_segments(segments):
@@ -125,11 +123,9 @@ def save_speaker_segments(segments):
                     score=word_data.get("score"),
                     speaker=speaker
                 )
-        return {'error': False, 'message': "Segments retrieved successfully."}
+        return True
     except Exception as e:
-        return {'error': True, 'message': str(e)}
-
-
+        return e
 
 def concatenate_speaker_segments(speaker, file_path):
     audio = AudioSegment.from_file(file_path, format="wav")
@@ -143,8 +139,6 @@ def concatenate_speaker_segments(speaker, file_path):
         segment_audio = audio[start_time:end_time]
         concatenated_audio += segment_audio
     return concatenated_audio
-
-
 
 
 def speaker_is_recorded_check(combined_data):
@@ -229,11 +223,8 @@ def person_labeling(request):
                 # save mebedding values
                 speaker_embedded_obj = EmbeddedSpeakers.objects.create(name=name, embedding=embeded_audio.tolist())
                 speaker_embedded_obj.save()
-
+            return JsonResponse({'error': False, 'message': 'Success'})
         except Exception as e:
             return JsonResponse({'error': True, 'message': str(e)})
-
-        return JsonResponse({'error': False, 'message':'Success'})
-
     else:
         return render(request, 'labeling.html')
