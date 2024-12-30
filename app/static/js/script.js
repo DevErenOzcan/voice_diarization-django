@@ -94,6 +94,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 document.getElementById('status-message').innerHTML += transcriptionText;
 
+                document.getElementById('status-message').innerHTML += transcriptionResult.topic
+
+
                 // Display the histogram image
                 const histogramImage = `data:image/png;base64,${transcriptionResult.histogram}`;
                 const histogramImgElement = document.createElement('img');

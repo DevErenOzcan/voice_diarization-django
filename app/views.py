@@ -2,7 +2,7 @@ import base64
 import os
 from io import BytesIO
 
-import joblib
+from groq import Groq
 import librosa
 import requests
 from django.core.files.storage import default_storage
@@ -19,7 +19,9 @@ from pydub import AudioSegment
 from scipy.spatial.distance import cdist
 
 
-TRANSCRIPTION_API_URL = 'https://2a15-34-125-186-31.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://f83f-34-142-182-249.ngrok-free.app/'
+GROK_API_URL = "https://api.grok.com/topic-analysis"
+GROK_TOKEN = "<GROK_TOKEN>"
 
 def home(request):
     return render(request, 'home.html')
@@ -49,6 +51,12 @@ def transcribe_audio(request):
                 # save speaker segments
                 segment_save_succes = save_speaker_segments(data)
                 if segment_save_succes == True:
+                    # topic analysis
+                    texts = ""
+                    segments = Segment.objects.all()
+                    for segment in segments:
+                        texts += segment.text + "\n"
+                    topic_analysis = get_topic_analysis(texts)
                     parsed_save_success = parse_and_save_speaker_audios(file_path)
                     if parsed_save_success == True:
                         speakers = Speaker.objects.all()
@@ -80,7 +88,7 @@ def transcribe_audio(request):
                         histogram_image = generate_audio_histogram(file_path)
                         histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
                         return JsonResponse(
-                        {'status': 'success', 'speaker_segments': segments, 'histogram': histogram_base64})
+                        {'status': 'success', 'speaker_segments': segments, 'topic': topic_analysis, 'histogram': histogram_base64})
                 else:
                     return JsonResponse({'error': True, 'message': 'An error occurred while saving segments. Error: '})
             else:
@@ -280,3 +288,30 @@ def person_labeling(request):
             return JsonResponse({'error': True, 'message': str(e)})
     else:
         return render(request, 'labeling.html')
+
+
+def get_topic_analysis(text):
+    client = Groq(api_key=GROK_TOKEN)
+    chat_completion = client.chat.completions.create(
+        messages=[
+            # Set an optional system message. This sets the behavior of the
+            # assistant and can be used to provide specific instructions for
+            # how it should behave throughout the conversation.
+            {
+                "role": "system",
+                "content": "Şuan da benim asistanımsın."
+            },
+            # Set a user message for the assistant to respond to.
+            {
+                "role": "user",
+                "content": f"Bu text'in konusunu belirler misin? : {text}",
+            }
+        ],
+        model="llama3-8b-8192",
+        temperature=0.5,
+        max_tokens=1024,
+        top_p=1,
+        stop=None,
+        stream=False,
+    )
+    return chat_completion.choices[0].message.content
