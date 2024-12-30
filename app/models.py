@@ -42,7 +42,9 @@ class Word(models.Model):
         return f"Word: {self.word} ({self.start}-{self.end})"
 
 
-# class Sentiment(models.Model):
-#     id = models.AutoField(primary_key=True)
-#
-#     segment = models.ForeignKey(Segment, related_name='sentiments', on_delete=models.CASCADE)
+class Sentiment(models.Model):
+    id = models.AutoField(primary_key=True)
+    mutlu = models.FloatField(null=True, blank=True)
+    sinirli = models.FloatField(null=True, blank=True)
+    uzgun = models.FloatField(null=True, blank=True)
+    segment = models.ForeignKey(Segment, related_name='sentiments', on_delete=models.CASCADE)

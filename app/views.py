@@ -2,6 +2,7 @@ import base64
 import os
 from io import BytesIO
 
+import librosa
 import requests
 from django.core.files.storage import default_storage
 from django.shortcuts import render
@@ -17,7 +18,7 @@ from pydub import AudioSegment
 from scipy.spatial.distance import cdist
 
 
-TRANSCRIPTION_API_URL = 'https://2145-34-91-247-18.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://2479-34-16-202-65.ngrok-free.app/'
 
 def home(request):
     return render(request, 'home.html')
@@ -52,8 +53,10 @@ def transcribe_audio(request):
                     speakers = Speaker.objects.all()
                     # embedding check
                     for speaker in speakers:
+                        # get speaker audios
+                        speaker_audios = get_speaker_audios(speaker, parsed_audios)
                         # concatenate speaker segments
-                        concatenated_speaker_audio = concatenate_speaker_audio(speaker, parsed_audios)
+                        concatenated_speaker_audio = concatenate_speaker_audio(speaker, speaker_audios)
                         # speaker is recorded??
                         most_matching_speaker, score = speaker_is_recorded_check(concatenated_speaker_audio)
                         # add the embedding cheack values to Speaker object
@@ -63,9 +66,18 @@ def transcribe_audio(request):
 
                     speaker_segments = []
                     for segment in Segment.objects.all():
+                        sentiment_analyze_result = None
+                        for parsed_audio in parsed_audios:
+                            if segment == parsed_audio['segment']:
+                                sentiment_analyze_result = voice_sentiment_analyze(parsed_audio['audio'])
+
                         speaker_segments.append({
                             'speaker': segment.speaker.most_matching_recorded_speaker.name,
-                            'text': segment.text
+                            'score': segment.speaker.score,
+                            'text': segment.text,
+                            'happy': sentiment_analyze_result["mutlu"],
+                            'angry': sentiment_analyze_result["sinirli"],
+                            'sad': sentiment_analyze_result["uzgun"],
                         })
                     # Encode the histogram image to base64 to send to the frontend
                     histogram_image = generate_audio_histogram(file_path)
@@ -105,15 +117,15 @@ def save_speaker_segments(segments):
 
             # hata varsa kaldırabilirsiniz
             pipe = settings.PIPE
-            sentiment_analyze = pipe(segment_data.get("text"))
+            word_sentiment_analyze = pipe(segment_data.get("text"))
 
             segment = Segment.objects.create(
                 start=segment_data.get("start"),
                 end=segment_data.get("end"),
                 text=segment_data.get("text"),
                 speaker=speaker,
-                sentiment = sentiment_analyze[0].get("label"),
-                sentiment_score = sentiment_analyze[0].get("score"),
+                sentiment = word_sentiment_analyze[0].get("label"),
+                sentiment_score = word_sentiment_analyze[0].get("score"),
             )
 
             for word_data in segment_data["words"]:
@@ -144,20 +156,26 @@ def parse_audio_file(file_path):
         })
     return parsed_audio
 
-def concatenate_speaker_audio(speaker, parsed_audios):
-    concatenated_speaker_audio = AudioSegment.empty()
+
+def get_speaker_audios(speaker, parsed_audios):
+    speaker_audios = []
     speaker_segments = Segment.objects.filter(speaker=speaker)
     for segment in speaker_segments:
         for parsed_audio in parsed_audios:
             if parsed_audio.get("segment") == segment:
-                audio_of_segment = parsed_audio.get("audio")
-                concatenated_speaker_audio += audio_of_segment
+                speaker_audios.append(parsed_audio)
+    return speaker_audios
+
+def concatenate_speaker_audio(speaker, speaker_audios):
+    concatenated_speaker_audio = AudioSegment.empty()
+    for speaker_audio in speaker_audios:
+        audio_of_segment = speaker_audio.get("audio")
+        concatenated_speaker_audio += audio_of_segment
     return concatenated_speaker_audio
 
 
 def speaker_is_recorded_check(combined_data):
     distances = []
-    sample_rate = combined_data.frame_rate
 
     # Get the voice embedding values
     inference = settings.INFERENCE
@@ -171,7 +189,7 @@ def speaker_is_recorded_check(combined_data):
     waveform_tensor = waveform_tensor.permute(1, 0)  # (channels, time)
 
     # !embedding!
-    embedding = inference({'waveform': waveform_tensor, 'sample_rate': sample_rate})
+    embedding = inference({'waveform': waveform_tensor, 'sample_rate': combined_data.frame_rate})
     embedding = embedding.reshape(1, -1)
 
     speakers = EmbeddedSpeakers.objects.all()
@@ -182,6 +200,32 @@ def speaker_is_recorded_check(combined_data):
 
     distances.sort(key=lambda x: x["distance"])
     return distances[0]["speaker"], distances[0]["distance"]
+
+
+def voice_sentiment_analyze(segment_of_audio):
+    # Load the pre-trained model
+    model = settings.EMOTION_RECOGNITION
+
+    # Get labels from the model
+    labels = model.classes_
+
+    # Convert audio segment to a NumPy array and normalize to floating-point
+    waveform = np.array(segment_of_audio.get_array_of_samples(), dtype=np.float32)
+    waveform /= np.iinfo(segment_of_audio.sample_width * 8).max  # Normalize to [-1.0, 1.0]
+
+    # Reshape for multi-channel support
+    waveform = waveform.reshape((-1, segment_of_audio.channels))
+
+    # Compute MFCCs
+    mfccs = librosa.feature.mfcc(y=waveform[:, 0], sr=segment_of_audio.frame_rate, n_mfcc=40)  # Use one channel
+    mfccs_mean = np.mean(mfccs.T, axis=0)
+
+    # Predict probabilities
+    probabilities = model.predict_proba([mfccs_mean])
+
+    # Prepare results
+    results = dict(zip(labels, probabilities[0]))
+    return results
 
 
 def generate_audio_histogram(file_path):

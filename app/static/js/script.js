@@ -84,9 +84,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Parse transcription result
                 let transcriptionText = '';
                 const transcriptionResult = data; // Assuming server returns transcriptionResult in response
-
                 transcriptionResult.speaker_segments.forEach(segment => {
-                    transcriptionText += `<h3>${segment.speaker}:</h3><p>${segment.text}</p>`;
+                    transcriptionText += `<h3>${segment.speaker}: score: ${segment.score}</h3>
+                      <p>${segment.text}</p>
+                      <p>Sentiments: Happy: ${segment.happy}, 
+                                     Angry: ${segment.angry}, 
+                                     Sad: ${segment.sad}</p>`;
                 });
 
                 document.getElementById('status-message').innerHTML += transcriptionText;

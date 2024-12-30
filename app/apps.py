@@ -1,3 +1,4 @@
+import joblib
 from django.apps import AppConfig
 from django.conf import settings
 from pyannote.audio import Model, Inference
@@ -13,3 +14,4 @@ class AppConfig(AppConfig):
                                use_auth_token="<HF_TOKEN>"), window="whole")
 
         settings.PIPE = pipeline("text-classification")
+        settings.EMOTION_RECOGNITION = joblib.load("emotion_recognition_model.joblib")
