@@ -7,7 +7,6 @@ from django.core.files.storage import default_storage
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-
 from app.models import Speaker, EmbeddedSpeakers, Segment, Word
 from django.conf import settings
 
@@ -18,7 +17,7 @@ from pydub import AudioSegment
 from scipy.spatial.distance import cdist
 
 
-TRANSCRIPTION_API_URL = 'https://fbb5-34-143-172-38.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://2145-34-91-247-18.ngrok-free.app/'
 
 def home(request):
     return render(request, 'home.html')
@@ -46,14 +45,17 @@ def transcribe_audio(request):
                 Word.objects.all().delete()
 
                 # save speaker segments
-                if save_speaker_segments(data):
+                segment_save_succes = save_speaker_segments(data)
+                if segment_save_succes == True:
+                    parsed_audios = parse_audio_file(file_path)
+                    # parsed_audio[0].get("segment").id
                     speakers = Speaker.objects.all()
                     # embedding check
                     for speaker in speakers:
                         # concatenate speaker segments
-                        concatenated_segments = concatenate_speaker_segments(speaker, file_path)
+                        concatenated_speaker_audio = concatenate_speaker_audio(speaker, parsed_audios)
                         # speaker is recorded??
-                        most_matching_speaker, score = speaker_is_recorded_check(concatenated_segments)
+                        most_matching_speaker, score = speaker_is_recorded_check(concatenated_speaker_audio)
                         # add the embedding cheack values to Speaker object
                         speaker.most_matching_recorded_speaker = most_matching_speaker
                         speaker.score = score
@@ -98,7 +100,7 @@ def save_audio_file(audio_file):
 
 def save_speaker_segments(segments):
     try:
-        for segment_data in segments:
+        for segment_data in segments["segments"]:
             speaker, _ = Speaker.objects.get_or_create(name=segment_data.get("speaker"))
 
             # hata varsa kaldırabilirsiniz
@@ -127,18 +129,30 @@ def save_speaker_segments(segments):
     except Exception as e:
         return e
 
-def concatenate_speaker_segments(speaker, file_path):
+def parse_audio_file(file_path):
     audio = AudioSegment.from_file(file_path, format="wav")
-    concatenated_audio = AudioSegment.empty()
-
-    segments = Segment.objects.filter(speaker=speaker)
+    parsed_audio = []
+    segments = Segment.objects.all()
     for segment in segments:
         # pydub a ms cinsinden göndermek gerekiyor o yüzden * 1000
         start_time = segment.start * 1000
         end_time = segment.end * 1000
         segment_audio = audio[start_time:end_time]
-        concatenated_audio += segment_audio
-    return concatenated_audio
+        parsed_audio.append({
+            "segment": segment,
+            "audio": segment_audio,
+        })
+    return parsed_audio
+
+def concatenate_speaker_audio(speaker, parsed_audios):
+    concatenated_speaker_audio = AudioSegment.empty()
+    speaker_segments = Segment.objects.filter(speaker=speaker)
+    for segment in speaker_segments:
+        for parsed_audio in parsed_audios:
+            if parsed_audio.get("segment") == segment:
+                audio_of_segment = parsed_audio.get("audio")
+                concatenated_speaker_audio += audio_of_segment
+    return concatenated_speaker_audio
 
 
 def speaker_is_recorded_check(combined_data):

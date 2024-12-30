@@ -1,4 +1,4 @@
 .idea/
 .venv
-recordings/
+app/recordings/
 app/migrations
