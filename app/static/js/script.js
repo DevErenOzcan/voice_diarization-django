@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 let transcriptionText = '';
                 const transcriptionResult = data; // Assuming server returns transcriptionResult in response
                 transcriptionResult.speaker_segments.forEach(segment => {
-                    transcriptionText += `<h3>${segment.speaker}: score: ${segment.score}</h3>
+                    transcriptionText += `<h3>${segment.speaker}: score: ${segment.score} ${segment.sentiment}: score: ${segment.sentiment_score} </h3>
                       <p>${segment.text}</p>
                       <p>Sentiments: Happy: ${segment.happy}, 
                                      Angry: ${segment.angry}, 

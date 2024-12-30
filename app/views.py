@@ -2,6 +2,7 @@ import base64
 import os
 from io import BytesIO
 
+import joblib
 import librosa
 import requests
 from django.core.files.storage import default_storage
@@ -18,7 +19,7 @@ from pydub import AudioSegment
 from scipy.spatial.distance import cdist
 
 
-TRANSCRIPTION_API_URL = 'https://2479-34-16-202-65.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://2a15-34-125-186-31.ngrok-free.app/'
 
 def home(request):
     return render(request, 'home.html')
@@ -48,42 +49,38 @@ def transcribe_audio(request):
                 # save speaker segments
                 segment_save_succes = save_speaker_segments(data)
                 if segment_save_succes == True:
-                    parsed_audios = parse_audio_file(file_path)
-                    # parsed_audio[0].get("segment").id
-                    speakers = Speaker.objects.all()
-                    # embedding check
-                    for speaker in speakers:
-                        # get speaker audios
-                        speaker_audios = get_speaker_audios(speaker, parsed_audios)
-                        # concatenate speaker segments
-                        concatenated_speaker_audio = concatenate_speaker_audio(speaker, speaker_audios)
-                        # speaker is recorded??
-                        most_matching_speaker, score = speaker_is_recorded_check(concatenated_speaker_audio)
-                        # add the embedding cheack values to Speaker object
-                        speaker.most_matching_recorded_speaker = most_matching_speaker
-                        speaker.score = score
-                        speaker.save()
+                    parsed_save_success = parse_and_save_speaker_audios(file_path)
+                    if parsed_save_success == True:
+                        speakers = Speaker.objects.all()
+                        # embedding check
+                        for speaker in speakers:
+                            # concatenate speaker segments
+                            concatenated_speaker_audio = concatenate_speaker_audio(speaker)
+                            # speaker is recorded??
+                            most_matching_speaker, score = speaker_is_recorded_check(concatenated_speaker_audio)
+                            # add the embedding cheack values to Speaker object
+                            speaker.most_matching_recorded_speaker = most_matching_speaker
+                            speaker.score = score
+                            speaker.save()
 
-                    speaker_segments = []
-                    for segment in Segment.objects.all():
-                        sentiment_analyze_result = None
-                        for parsed_audio in parsed_audios:
-                            if segment == parsed_audio['segment']:
-                                sentiment_analyze_result = voice_sentiment_analyze(parsed_audio['audio'])
-
-                        speaker_segments.append({
-                            'speaker': segment.speaker.most_matching_recorded_speaker.name,
-                            'score': segment.speaker.score,
-                            'text': segment.text,
-                            'happy': sentiment_analyze_result["mutlu"],
-                            'angry': sentiment_analyze_result["sinirli"],
-                            'sad': sentiment_analyze_result["uzgun"],
-                        })
-                    # Encode the histogram image to base64 to send to the frontend
-                    histogram_image = generate_audio_histogram(file_path)
-                    histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
-                    return JsonResponse(
-                        {'status': 'success', 'speaker_segments': speaker_segments, 'histogram': histogram_base64})
+                        segments = []
+                        for segment in Segment.objects.all():
+                            sentiment_analyze_result = voice_sentiment_analyze(segment.audio)
+                            segments.append({
+                                'speaker': segment.speaker.most_matching_recorded_speaker.name,
+                                'score': segment.speaker.score,
+                                'sentiment': segment.sentiment,
+                                'sentiment_score': segment.sentiment_score,
+                                'text': segment.text,
+                                'happy': sentiment_analyze_result["mutlu"],
+                                'angry': sentiment_analyze_result["sinirli"],
+                                'sad': sentiment_analyze_result["uzgun"],
+                            })
+                        # Encode the histogram image to base64 to send to the frontend
+                        histogram_image = generate_audio_histogram(file_path)
+                        histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
+                        return JsonResponse(
+                        {'status': 'success', 'speaker_segments': segments, 'histogram': histogram_base64})
                 else:
                     return JsonResponse({'error': True, 'message': 'An error occurred while saving segments. Error: '})
             else:
@@ -141,35 +138,35 @@ def save_speaker_segments(segments):
     except Exception as e:
         return e
 
-def parse_audio_file(file_path):
-    audio = AudioSegment.from_file(file_path, format="wav")
-    parsed_audio = []
-    segments = Segment.objects.all()
-    for segment in segments:
-        # pydub a ms cinsinden göndermek gerekiyor o yüzden * 1000
-        start_time = segment.start * 1000
-        end_time = segment.end * 1000
-        segment_audio = audio[start_time:end_time]
-        parsed_audio.append({
-            "segment": segment,
-            "audio": segment_audio,
-        })
-    return parsed_audio
 
+def parse_and_save_speaker_audios(file_path):
+    try:
+        audio = AudioSegment.from_file(file_path, format="wav")
+        segments = Segment.objects.all()
+        for segment in segments:
+            start_time = segment.start * 1000
+            end_time = segment.end * 1000
+            segment_audio = audio[start_time:end_time]
+            output_dir = "recordings/segment"
+            os.makedirs(output_dir, exist_ok=True)  # Ensure the directory exists
+            output_file_path = os.path.join(output_dir, f"segment_{segment.id}.wav")
 
-def get_speaker_audios(speaker, parsed_audios):
-    speaker_audios = []
-    speaker_segments = Segment.objects.filter(speaker=speaker)
-    for segment in speaker_segments:
-        for parsed_audio in parsed_audios:
-            if parsed_audio.get("segment") == segment:
-                speaker_audios.append(parsed_audio)
-    return speaker_audios
+            # Export the audio segment
+            segment_audio.export(output_file_path, format="wav")
 
-def concatenate_speaker_audio(speaker, speaker_audios):
+            # Save the file path to the segment instance
+            segment.audio = output_file_path
+            segment.save()
+        return True
+    except Exception as e:
+        return e
+
+def concatenate_speaker_audio(speaker):
     concatenated_speaker_audio = AudioSegment.empty()
-    for speaker_audio in speaker_audios:
-        audio_of_segment = speaker_audio.get("audio")
+    speaker_segmnets = Segment.objects.filter(speaker=speaker)
+    for speaker_segment in speaker_segmnets:
+        audio = AudioSegment.from_file(speaker_segment.audio, format="wav")
+        audio_of_segment = audio
         concatenated_speaker_audio += audio_of_segment
     return concatenated_speaker_audio
 
@@ -202,30 +199,27 @@ def speaker_is_recorded_check(combined_data):
     return distances[0]["speaker"], distances[0]["distance"]
 
 
-def voice_sentiment_analyze(segment_of_audio):
+def voice_sentiment_analyze(audio_path):
     # Load the pre-trained model
     model = settings.EMOTION_RECOGNITION
 
     # Get labels from the model
     labels = model.classes_
 
-    # Convert audio segment to a NumPy array and normalize to floating-point
-    waveform = np.array(segment_of_audio.get_array_of_samples(), dtype=np.float32)
-    waveform /= np.iinfo(segment_of_audio.sample_width * 8).max  # Normalize to [-1.0, 1.0]
-
-    # Reshape for multi-channel support
-    waveform = waveform.reshape((-1, segment_of_audio.channels))
-
-    # Compute MFCCs
-    mfccs = librosa.feature.mfcc(y=waveform[:, 0], sr=segment_of_audio.frame_rate, n_mfcc=40)  # Use one channel
+    audio, sr = librosa.load(audio_path, sr=None)
+    mfccs = librosa.feature.mfcc(y=audio, sr=sr, n_mfcc=40)
     mfccs_mean = np.mean(mfccs.T, axis=0)
 
     # Predict probabilities
     probabilities = model.predict_proba([mfccs_mean])
 
     # Prepare results
-    results = dict(zip(labels, probabilities[0]))
-    return results
+    result = {
+        labels[0]: probabilities[0][0],
+        labels[1]: probabilities[0][1],
+        labels[2]: probabilities[0][2],
+    }
+    return result
 
 
 def generate_audio_histogram(file_path):

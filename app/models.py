@@ -22,6 +22,7 @@ class Segment(models.Model):
     start = models.FloatField(null=True, blank=True)
     end = models.FloatField(null=True, blank=True)
     text = models.TextField(null=True, blank=True)
+    audio = models.FileField(null=True, blank=True)
     sentiment = models.TextField(null=True, blank=True)
     sentiment_score = models.FloatField(null=True, blank=True)
     speaker = models.ForeignKey(Speaker, related_name='segments', on_delete=models.CASCADE, null=True, blank=True)
