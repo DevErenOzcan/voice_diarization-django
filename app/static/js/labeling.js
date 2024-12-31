@@ -1,6 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
     const recordToggle = document.getElementById("record-toggle");
     const audioPlayback = document.getElementById("audio-playback");
+    const audioContainer = document.getElementById("audio-container");
     const speakerNameInput = document.getElementById("speaker_name");
     const statusMessage = document.getElementById("status-message");
 
@@ -8,13 +9,24 @@ document.addEventListener("DOMContentLoaded", function () {
     let audioChunks = [];
     let isRecording = false;
 
+    // Disable the button if speaker name is empty
+    speakerNameInput.addEventListener("input", function () {
+        if (speakerNameInput.value.trim() === "") {
+            recordToggle.disabled = true;
+            recordToggle.classList.add("disabled");
+        } else {
+            recordToggle.disabled = false;
+            recordToggle.classList.remove("disabled");
+        }
+    });
+
+    // Initially disable the button
+    recordToggle.disabled = true;
+
     // Toggle recording
     recordToggle.addEventListener("click", function () {
-        if (!isRecording) {
-            startRecording();
-        } else {
-            stopRecording();
-        }
+        isRecording ? stopRecording() : startRecording();
+        toggleRecordingState();
     });
 
     // Start recording function
@@ -24,6 +36,8 @@ document.addEventListener("DOMContentLoaded", function () {
             statusMessage.textContent = "Please enter a speaker name before recording.";
             return;
         }
+
+        audioChunks = [];
         statusMessage.textContent = "Recording...";
 
         navigator.mediaDevices.getUserMedia({ audio: true })
@@ -31,8 +45,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.start();
                 isRecording = true;
-                recordToggle.textContent = "Stop Recording";
-                recordToggle.style.backgroundColor = '#f44336';
 
                 mediaRecorder.ondataavailable = event => {
                     audioChunks.push(event.data);
@@ -46,35 +58,43 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Stop recording function
     function stopRecording() {
-        if (!mediaRecorder) return;
+        if (!mediaRecorder) {
+            console.warn("MediaRecorder is not initialized.");
+            return;
+        }
 
         mediaRecorder.stop();
         isRecording = false;
-        recordToggle.textContent = "Start Recording";
-        recordToggle.style.backgroundColor = '#4CAF50';
+        statusMessage.textContent = "Recording stopped. Processing audio...";
 
         mediaRecorder.onstop = () => {
-            statusMessage.textContent = "Recording stopped. Processing audio...";
-
             const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
             const audioUrl = URL.createObjectURL(audioBlob);
             audioPlayback.src = audioUrl;
-            audioPlayback.hidden = false;
 
-            // Send audio file to the server
+            // Show the audio container
+            audioContainer.classList.remove("hidden");
+
+            // Upload the audio
             uploadAudio(audioBlob);
         };
+    }
+
+    // Toggle recording state
+    function toggleRecordingState() {
+        recordToggle.classList.toggle("recording");
+        recordToggle.textContent = isRecording ? "Stop Recording" : "Start Recording";
     }
 
     // Function to upload audio to the server
     function uploadAudio(audioBlob) {
         const speakerName = speakerNameInput.value.trim();
         const formData = new FormData();
-        formData.append('audio_file', audioBlob, `${speakerName}.wav`);
-        formData.append('speaker_name', speakerName);
+        formData.append("audio_file", audioBlob, `${speakerName}.wav`);
+        formData.append("speaker_name", speakerName);
 
-        fetch('/person_labeling/', {
-            method: 'POST',
+        fetch("/person_labeling/", {
+            method: "POST",
             body: formData,
         })
             .then(response => {
