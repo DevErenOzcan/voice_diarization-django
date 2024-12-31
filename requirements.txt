@@ -103,3 +103,4 @@ typing_extensions==4.9.0
 tzdata==2024.2
 urllib3==2.3.0
 yarl==1.18.3
+pytest==8.3.4
