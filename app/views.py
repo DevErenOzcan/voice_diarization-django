@@ -79,13 +79,13 @@ def transcribe_audio(request):
                             sentiment_analyze_result = voice_sentiment_analyze(segment.audio)
                             response.append({
                                 'speaker': segment.speaker.most_matching_recorded_speaker.name,
-                                'score': segment.speaker.score,
+                                'score': f"{segment.speaker.score * 100:.2f}%",
                                 'sentiment': segment.sentiment,
-                                'sentiment_score': segment.sentiment_score,
+                                'sentiment_score': f"{segment.sentiment_score * 100:.2f}%",
                                 'text': segment.text,
-                                'happy': sentiment_analyze_result["mutlu"],
-                                'angry': sentiment_analyze_result["sinirli"],
-                                'sad': sentiment_analyze_result["uzgun"],
+                                'happy': f"{sentiment_analyze_result["mutlu"] * 100:.2f}%",
+                                'angry': f"{sentiment_analyze_result["sinirli"] * 100:.2f}%",
+                                'sad': f"{sentiment_analyze_result["uzgun"] * 100:.2f}%",
                             })
                         # Encode the histogram image to base64 to send to the frontend
                         histogram_image = generate_audio_histogram(file_path, speakers)

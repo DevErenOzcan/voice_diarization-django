@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Speaker information
                 const speakerInfo = document.createElement("h3");
                 speakerInfo.classList.add("segment-speaker");
-                speakerInfo.textContent = `${segment.speaker}: ${segment.sentiment} (Score: ${segment.sentiment_score.toFixed(2)})`;
+                speakerInfo.textContent = `${segment.speaker}: ${segment.score}`;
                 segmentCard.appendChild(speakerInfo);
 
                 // Segment text
