@@ -19,7 +19,7 @@ from pydub import AudioSegment
 from scipy.spatial.distance import cdist
 
 
-TRANSCRIPTION_API_URL = 'https://f83f-34-142-182-249.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://0368-34-118-243-245.ngrok-free.app/'
 GROK_API_URL = "https://api.grok.com/topic-analysis"
 GROK_TOKEN = "<GROK_TOKEN>"
 
@@ -91,8 +91,12 @@ def transcribe_audio(request):
                         {'status': 'success', 'speaker_segments': segments, 'topic': topic_analysis, 'histogram': histogram_base64})
                 else:
                     return JsonResponse({'error': True, 'message': 'An error occurred while saving segments. Error: '})
+            elif response.status_code == 404:
+                return JsonResponse({'error': True, 'message': "Page not found error from api"})
+            elif response.status_code == 500:
+                return JsonResponse({'error': True, 'message': "Internal server error from api"})
             else:
-                return JsonResponse({'error': True, 'message': "response not 200"})
+                return JsonResponse({'error': True, 'message': "Unknown error from api"})
         else:
             return JsonResponse({'error': True, 'message': file_save_message})
     else:
