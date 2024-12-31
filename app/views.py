@@ -17,11 +17,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydub import AudioSegment
 from scipy.spatial.distance import cdist
+from scipy.fft import fft
 
 
 TRANSCRIPTION_API_URL = 'https://0368-34-118-243-245.ngrok-free.app/'
 GROK_API_URL = "https://api.grok.com/topic-analysis"
-GROK_TOKEN = "<GROK_TOKEN>"
+GROK_TOKEN = "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"
 
 def home(request):
     return render(request, 'home.html')
@@ -234,28 +235,47 @@ def voice_sentiment_analyze(audio_path):
     return result
 
 
-def generate_audio_histogram(file_path):
+def generate_combined_histogram(file_path):
     # Load the audio file using pydub
     audio = AudioSegment.from_wav(file_path)
 
-    # Convert audio to numpy array for FFT
+    # Convert audio to numpy array
     samples = np.array(audio.get_array_of_samples())
 
-    # Perform FFT and get frequencies
-    freqs = np.fft.fftfreq(len(samples), 1.0 / audio.frame_rate)
-    fft_vals = np.abs(np.fft.fft(samples))
+    # Create a figure with customized size
+    fig, axes = plt.subplots(3, 1, figsize=(10, 12))
 
-    # Plot the histogram (frequency spectrum)
-    plt.figure(figsize=(10, 6))
-    plt.plot(freqs[:len(freqs) // 2], fft_vals[:len(fft_vals) // 2])  # Only positive frequencies
-    plt.title("Audio Frequency Spectrum")
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Magnitude")
+    # Waveform Histogram (Amplitude vs Time)
+    axes[0].plot(samples, color='blue')  # Plot all the samples
+    axes[0].set_title("Audio Waveform")
+    axes[0].set_xlabel("Samples")
+    axes[0].set_ylabel("Amplitude")
 
-    # Save the histogram as an image in memory
+    # Spectrogram
+    axes[1].specgram(samples, NFFT=1028, Fs=audio.frame_rate, cmap='viridis')
+    axes[1].set_title("Spectrogram")
+    axes[1].set_xlabel("Time (s)")
+    axes[1].set_ylabel("Frequency (Hz)")
+    axes[1].set_ylim(0, 8000)
+
+    # Frequency Spectrum as a Pie Chart
+    fft_samples = np.abs(fft(samples))[:len(samples) // 2]  # Compute FFT and take positive frequencies
+    frequency_bands = np.array_split(fft_samples, 5)  # Split into 5 frequency bands
+    band_energies = [band.sum() for band in frequency_bands]  # Compute energy for each band
+    labels = [f"Band {i + 1}" for i in range(len(band_energies))]
+
+    # Increase the size of the pie chart by adjusting the radius
+    axes[2].pie(band_energies, labels=labels, autopct="%1.1f%%", textprops={'fontsize': 10}, radius=1.3)
+    axes[2].set_title("Frequency Band Energy Distribution")
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Save the plot as an image in memory
     img_buf = BytesIO()
     plt.savefig(img_buf, format='png')
     img_buf.seek(0)
+    plt.close(fig)
     return img_buf.read()
 
 
