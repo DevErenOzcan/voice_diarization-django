@@ -2,6 +2,7 @@ import base64
 import os
 from io import BytesIO
 
+from django.utils.lorem_ipsum import words
 from groq import Groq
 import librosa
 import requests
@@ -20,7 +21,7 @@ from scipy.spatial.distance import cdist
 from scipy.fft import fft
 
 
-TRANSCRIPTION_API_URL = 'https://0368-34-118-243-245.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://69b4-34-91-196-117.ngrok-free.app/'
 GROK_API_URL = "https://api.grok.com/topic-analysis"
 GROK_TOKEN = "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"
 
@@ -72,10 +73,11 @@ def transcribe_audio(request):
                             speaker.score = score
                             speaker.save()
 
-                        segments = []
-                        for segment in Segment.objects.all():
+                        response = []
+                        segments = Segment.objects.all()
+                        for segment in segments:
                             sentiment_analyze_result = voice_sentiment_analyze(segment.audio)
-                            segments.append({
+                            response.append({
                                 'speaker': segment.speaker.most_matching_recorded_speaker.name,
                                 'score': segment.speaker.score,
                                 'sentiment': segment.sentiment,
@@ -86,10 +88,10 @@ def transcribe_audio(request):
                                 'sad': sentiment_analyze_result["uzgun"],
                             })
                         # Encode the histogram image to base64 to send to the frontend
-                        histogram_image = generate_audio_histogram(file_path)
+                        histogram_image = generate_audio_histogram(file_path, speakers)
                         histogram_base64 = base64.b64encode(histogram_image).decode('utf-8')
                         return JsonResponse(
-                        {'status': 'success', 'speaker_segments': segments, 'topic': topic_analysis, 'histogram': histogram_base64})
+                        {'status': 'success', 'speaker_segments': response, 'topic': topic_analysis, 'histogram': histogram_base64})
                 else:
                     return JsonResponse({'error': True, 'message': 'An error occurred while saving segments. Error: '})
             elif response.status_code == 404:
@@ -235,7 +237,7 @@ def voice_sentiment_analyze(audio_path):
     return result
 
 
-def generate_combined_histogram(file_path):
+def generate_audio_histogram(file_path, speakers):
     # Load the audio file using pydub
     audio = AudioSegment.from_wav(file_path)
 
@@ -259,14 +261,17 @@ def generate_combined_histogram(file_path):
     axes[1].set_ylim(0, 8000)
 
     # Frequency Spectrum as a Pie Chart
-    fft_samples = np.abs(fft(samples))[:len(samples) // 2]  # Compute FFT and take positive frequencies
-    frequency_bands = np.array_split(fft_samples, 5)  # Split into 5 frequency bands
-    band_energies = [band.sum() for band in frequency_bands]  # Compute energy for each band
-    labels = [f"Band {i + 1}" for i in range(len(band_energies))]
+
+    labels = []
+    word_counts = []
+    for speaker in speakers:
+        labels.append(EmbeddedSpeakers.objects.get(id=speaker.most_matching_recorded_speaker.id).name)
+        word_counts.append(Word.objects.filter(speaker=speaker).count())
+
 
     # Increase the size of the pie chart by adjusting the radius
-    axes[2].pie(band_energies, labels=labels, autopct="%1.1f%%", textprops={'fontsize': 10}, radius=1.3)
-    axes[2].set_title("Frequency Band Energy Distribution")
+    axes[2].pie(word_counts, labels=labels, autopct="%1.1f%%", textprops={'fontsize': 10}, radius=1.3)
+    axes[2].set_title("Pie Chart")
 
     # Adjust layout
     plt.tight_layout()
@@ -323,12 +328,12 @@ def get_topic_analysis(text):
             # how it should behave throughout the conversation.
             {
                 "role": "system",
-                "content": "Şuan da benim asistanımsın."
+                "content": "Sen benim sadece türkçe konuşan asistanımsın ."
             },
             # Set a user message for the assistant to respond to.
             {
                 "role": "user",
-                "content": f"Bu text'in konusunu belirler misin? : {text}",
+                "content": f"Bu metni analiz et ve konuşmanın genel olarak ne hakkında olduğunu kısaca açıkla. Yanıtın yalnızca Türkçe olmalı. İşte metin: {text}"
             }
         ],
         model="llama3-8b-8192",
