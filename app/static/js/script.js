@@ -20,7 +20,7 @@ document.addEventListener("DOMContentLoaded", function () {
         audioChunks = [];
         statusMessage.textContent = "Recording...";
 
-        navigator.mediaDevices.getUserMedia({ audio: true })
+        navigator.mediaDevices.getUserMedia({audio: true})
             .then(stream => {
                 mediaRecorder = new MediaRecorder(stream);
                 mediaRecorder.start();
@@ -48,7 +48,7 @@ document.addEventListener("DOMContentLoaded", function () {
         statusMessage.textContent = "Recording stopped. Processing audio...";
 
         mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+            const audioBlob = new Blob(audioChunks, {type: "audio/wav"});
             const audioUrl = URL.createObjectURL(audioBlob);
             audioPlayback.src = audioUrl;
             audioPlayback.hidden = !audioPlayback.src;
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Toggle recording state
     function toggleRecordingState() {
         recordToggle.classList.toggle("recording");
-        recordToggle.textContent = isRecording ? "Stop Recording" : "Start Recording";
+        recordToggle.textContent = isRecording ? "Start Recording" : "Stop Recording";
     }
 
     // Function to upload audio to the server
@@ -80,9 +80,11 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(data => {
                 displayTranscriptionResults(data);
                 hideLoadingSpinner(); // Yükleniyor simgesini gizle
+                recordToggle.textContent = "Transcribe New Audio";
             })
             .catch(error => {
                 console.error("Error uploading audio:", error);
+                recordToggle.textContent = "Transcribe New Audio";
                 statusMessage.textContent = "Failed to upload audio. Please try again.";
                 hideLoadingSpinner(); // Hata durumunda da yükleniyor simgesini gizle
             });

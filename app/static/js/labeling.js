@@ -83,7 +83,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // Toggle recording state
     function toggleRecordingState() {
         recordToggle.classList.toggle("recording");
-        recordToggle.textContent = isRecording ? "Stop Recording" : "Start Recording";
+        recordToggle.textContent = isRecording ? "Start Recording" : "Stop Recording";
     }
 
     // Function to upload audio to the server
@@ -107,10 +107,13 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(data => {
                 statusMessage.textContent = "Audio uploaded successfully!";
                 console.log("Server response:", data);
+                recordToggle.textContent = "Transcribe New Audio";
+
             })
             .catch(error => {
                 console.error("Error uploading audio:", error);
                 statusMessage.textContent = "Failed to upload audio. Please try again.";
+                recordToggle.textContent = "Transcribe New Audio";
             });
     }
 });
