@@ -21,7 +21,7 @@ from scipy.spatial.distance import cdist
 from scipy.fft import fft
 
 
-TRANSCRIPTION_API_URL = 'https://69b4-34-91-196-117.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://265e-34-16-233-113.ngrok-free.app/'
 GROK_API_URL = "https://api.grok.com/topic-analysis"
 GROK_TOKEN = "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"
 
@@ -301,17 +301,20 @@ def person_labeling(request):
 
             # save audio
             if audio_file and name:
-                file_name = f'recordings/labeled/{name}_{audio_file.name}'
-                file_path = default_storage.save(file_name, audio_file)
+                file_save_success, file_save_message = save_audio_file(audio_file)
+                if file_save_success:
+                    file_path = file_save_message
 
-                # get embedding values
-                inference = settings.INFERENCE
-                #inference.to(torch.device("cuda"))
-                embeded_audio = inference(file_path)
+                    # get embedding values
+                    inference = settings.INFERENCE
+                    #inference.to(torch.device("cuda"))
+                    embeded_audio = inference(file_path)
 
-                # save mebedding values
-                speaker_embedded_obj = EmbeddedSpeakers.objects.create(name=name, embedding=embeded_audio.tolist())
-                speaker_embedded_obj.save()
+                    # save mebedding values
+                    speaker_embedded_obj = EmbeddedSpeakers.objects.create(name=name, embedding=embeded_audio.tolist())
+                    speaker_embedded_obj.save()
+                else:
+                    return JsonResponse({'error': True, 'message': file_save_message})
             return JsonResponse({'error': False, 'message': 'Success'})
         except Exception as e:
             return JsonResponse({'error': True, 'message': str(e)})
