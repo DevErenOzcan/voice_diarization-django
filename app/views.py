@@ -21,7 +21,7 @@ from scipy.spatial.distance import cdist
 from scipy.fft import fft
 
 
-TRANSCRIPTION_API_URL = 'https://265e-34-16-233-113.ngrok-free.app/'
+TRANSCRIPTION_API_URL = 'https://b8f3-34-168-163-194.ngrok-free.app/'
 GROK_API_URL = "https://api.grok.com/topic-analysis"
 GROK_TOKEN = "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"
 
@@ -77,15 +77,26 @@ def transcribe_audio(request):
                         segments = Segment.objects.all()
                         for segment in segments:
                             sentiment_analyze_result = voice_sentiment_analyze(segment.audio)
+                            negatif_score = ""
+                            positif_score = ""
+                            if segment.sentiment == "POSITIVE":
+                                negatif_score = 1-segment.sentiment_score
+                                positif_score = segment.sentiment_score
+                            elif segment.sentiment == "NEGATIVE":
+                                negatif_score = segment.sentiment_score
+                                positif_score = 1-segment.sentiment_score
+
                             response.append({
                                 'speaker': segment.speaker.most_matching_recorded_speaker.name,
                                 'score': f"{segment.speaker.score * 100:.2f}%",
-                                'sentiment': segment.sentiment,
-                                'sentiment_score': f"{segment.sentiment_score * 100:.2f}%",
+                                'negative_score': f"{negatif_score * 100:.2f}%",
+                                'positive_score': f"{positif_score * 100:.2f}%",
                                 'text': segment.text,
                                 'happy': f"{sentiment_analyze_result["mutlu"] * 100:.2f}%",
                                 'angry': f"{sentiment_analyze_result["sinirli"] * 100:.2f}%",
                                 'sad': f"{sentiment_analyze_result["uzgun"] * 100:.2f}%",
+                                'average_happy': f"{(positif_score + sentiment_analyze_result["mutlu"])/2 * 100:.2f}%",
+                                'average_sad': f"{(negatif_score + sentiment_analyze_result["uzgun"])/2 * 100:.2f}%",
                             })
                         # Encode the histogram image to base64 to send to the frontend
                         histogram_image = generate_audio_histogram(file_path, speakers)

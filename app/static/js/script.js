@@ -129,18 +129,46 @@ document.addEventListener("DOMContentLoaded", function () {
                 sentimentsContainer.classList.add("segment-sentiments");
 
                 const happySentiment = document.createElement("p");
-                happySentiment.textContent = `Happy: ${segment.happy}`;
+                happySentiment.textContent = `Voice-Happy: ${segment.happy}`;
                 sentimentsContainer.appendChild(happySentiment);
 
                 const angrySentiment = document.createElement("p");
-                angrySentiment.textContent = `Angry: ${segment.angry}`;
+                angrySentiment.textContent = `Voice-Angry: ${segment.angry}`;
                 sentimentsContainer.appendChild(angrySentiment);
 
                 const sadSentiment = document.createElement("p");
-                sadSentiment.textContent = `Sad: ${segment.sad}`;
+                sadSentiment.textContent = `Voice-Sad: ${segment.sad}`;
                 sentimentsContainer.appendChild(sadSentiment);
 
                 segmentCard.appendChild(sentimentsContainer);
+
+                // text Sentiments section
+                const textsentimentsContainer = document.createElement("div");
+                textsentimentsContainer.classList.add("segment-sentiments");
+
+                const texthappySentiment = document.createElement("p");
+                texthappySentiment.textContent = `Text-Happy: ${segment.positive_score}`;
+                textsentimentsContainer.appendChild(texthappySentiment);
+
+                const textsadSentiment = document.createElement("p");
+                textsadSentiment.textContent = `Text-Sad: ${segment.negative_score}`;
+                textsentimentsContainer.appendChild(textsadSentiment);
+
+                segmentCard.appendChild(textsentimentsContainer);
+
+                // average Sentiments section
+                const averagesentimentsContainer = document.createElement("div");
+                averagesentimentsContainer.classList.add("segment-sentiments");
+
+                const averagehappySentiment = document.createElement("p");
+                averagehappySentiment.textContent = `Average-Happy: ${segment.average_happy}`;
+                averagesentimentsContainer.appendChild(averagehappySentiment);
+
+                const averagesadSentiment = document.createElement("p");
+                averagesadSentiment.textContent = `Average-Sad: ${segment.average_sad}`;
+                averagesentimentsContainer.appendChild(averagesadSentiment);
+
+                segmentCard.appendChild(averagesentimentsContainer);
 
                 // Append segment card to status message
                 statusMessage.appendChild(segmentCard);
