@@ -107,12 +107,9 @@ tabulate==0.9.0
 tensorboardX==2.6.2.2
 threadpoolctl==3.5.0
 tokenizers==0.21.0
-torch==2.5.0+cpu
 torch-audiomentations==0.11.1
 torch_pitch_shift==1.2.5
-torchaudio==2.5.0+cpu
 torchmetrics==1.6.1
-torchvision==0.20.0+cpu
 tqdm==4.67.1
 transformers==4.48.1
 typer==0.15.1
